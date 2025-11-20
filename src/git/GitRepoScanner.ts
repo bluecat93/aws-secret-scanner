@@ -82,6 +82,13 @@ export default class GitRepoScanner {
     return unique.length > 0 ? unique : [this.repoConfig.defaultBranch];
   }
 
+  private async hasRemoteBranch(branch: string): Promise<boolean> {
+    const remotes = await this.git.branch(["-r"]);
+    return remotes.all
+      .map((name) => name.trim())
+      .some((name) => name === `origin/${branch}`);
+  }
+
   private async scanBranch(branch: string): Promise<BranchScanResult> {
     const branchState = this.stateStore.getBranchState(branch);
     const resumeSha =
@@ -152,7 +159,16 @@ export default class GitRepoScanner {
     try {
       await this.git.checkout(branch);
     } catch (error) {
-      await this.git.checkout(["-B", branch, `origin/${branch}`]);
+      const remoteExists = await this.hasRemoteBranch(branch);
+      if (remoteExists) {
+        await this.git.checkout(["-B", branch, `origin/${branch}`]);
+        return;
+      }
+      const err = new Error(
+        `Branch "${branch}" does not exist in ${this.repoConfig.repoUrl}`
+      ) as Error & { status?: number };
+      err.status = 404;
+      throw err;
     }
   }
 

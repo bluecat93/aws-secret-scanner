@@ -106,3 +106,5 @@ The API uses the same checkpoint/resume behavior as the CLI, so interrupted scan
 
 `POST /scan` accepts `githubUsername` and `githubToken` fields when you need to override the default credentials for a specific request. If omitted, the server uses the environment variables (`GITHUB_USERNAME`, `GITHUB_PAT`).
 
+If you request a branch that doesn’t exist in the target repository, the API returns a 404 with a descriptive error message instead of a generic Git exception.
+
