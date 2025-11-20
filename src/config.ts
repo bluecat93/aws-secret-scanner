@@ -1,6 +1,7 @@
 export interface RepoConfig {
   repoUrl: string;
   defaultBranch: string;
+  branches: string[];
   repoName: string;
   removeCloneOnExit: boolean;
   maxCommitsPerRun?: number;
@@ -13,9 +14,16 @@ export interface ScanConfig {
   forceFullScan: boolean;
 }
 
+const defaultBranch = process.env.TARGET_BRANCH ?? "main";
+const branchList =
+  process.env.TARGET_BRANCHES?.split(",")
+    .map((branch) => branch.trim())
+    .filter(Boolean) ?? [];
+
 const repoConfig: RepoConfig = {
   repoUrl: process.env.TARGET_REPO ?? "https://github.com/owner/project.git",
-  defaultBranch: "main",
+  defaultBranch,
+  branches: branchList,
   repoName: "project",
   removeCloneOnExit: true,
   maxCommitsPerRun: 250

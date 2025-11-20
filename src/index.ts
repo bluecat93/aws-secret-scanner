@@ -36,16 +36,19 @@ async function main() {
     }
   }
 
-  console.log(
-    chalk.gray(
-      `Processed ${result.processedCommits} commits. Last placeholder: ${result.lastSha}`
-    )
-  );
+  console.log(chalk.gray(`Processed ${result.processedCommits} commits.`));
+  for (const [branch, placeholder] of Object.entries(
+    result.branchPlaceholders
+  )) {
+    console.log(
+      chalk.gray(`  ${branch}: last placeholder ${placeholder ?? "none"}`)
+    );
+  }
 
   const output = {
     repo: config.repoConfig.repoUrl,
     processedCommits: result.processedCommits,
-    lastPlaceholder: result.lastSha,
+    branchPlaceholders: result.branchPlaceholders,
     findings: result.findings
   };
   writeFileSync(config.scanConfig.outputFile, JSON.stringify(output, null, 2));

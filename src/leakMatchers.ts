@@ -1,4 +1,5 @@
 export interface LeakFinding {
+  branch: string;
   commitSha: string;
   committer: string;
   committedDate: string;
@@ -13,7 +14,8 @@ export function findLeaks(
   patterns: RegExp[],
   commitSha: string,
   committer: string,
-  committedDate: string
+  committedDate: string,
+  branch: string
 ): LeakFinding[] {
   const findings: LeakFinding[] = [];
   const diffBlocks = diffText.split(/^diff --git/m).filter(Boolean);
@@ -26,6 +28,7 @@ export function findLeaks(
       let match: RegExpExecArray | null;
       while ((match = pattern.exec(block)) !== null) {
         findings.push({
+          branch,
           commitSha,
           committer,
           committedDate,

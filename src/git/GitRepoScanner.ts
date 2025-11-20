@@ -6,7 +6,14 @@ import { RepoConfig, ScanConfig, githubAuth } from "../config.js";
 import ScanStateStore from "../state/ScanStateStore.js";
 import { LeakFinding, findLeaks } from "../leakMatchers.js";
 
-interface ScanResult {
+interface AggregateScanResult {
+  findings: LeakFinding[];
+  processedCommits: number;
+  branchPlaceholders: Record<string, string | undefined>;
+}
+
+interface BranchScanResult {
+  branch: string;
   findings: LeakFinding[];
   processedCommits: number;
   lastSha?: string;
@@ -22,71 +29,129 @@ export default class GitRepoScanner {
     private readonly stateStore: ScanStateStore
   ) {}
 
-  async scan(): Promise<ScanResult> {
-    const state = this.stateStore.load();
-    const resumeSha =
-      !this.scanConfig.forceFullScan && state?.incomplete
-        ? state.lastProcessedSha
-        : undefined;
-
-    if (this.scanConfig.forceFullScan && state?.incomplete) {
-      this.stateStore.clear();
-    }
-
+  async scan(): Promise<AggregateScanResult> {
+    console.log("Initializing scan...");
     await this.prepareRepo();
-    let completed = false;
+
+    const aggregateFindings: LeakFinding[] = [];
+    const branchPlaceholders: Record<string, string | undefined> = {};
+    let totalProcessed = 0;
+    const branches = await this.getBranchesToScan();
 
     try {
-      const log = await this.git.log({ "--date-order": null });
-
-      const findings: LeakFinding[] = [];
-      let processed = 0;
-      const max = this.repoConfig.maxCommitsPerRun ?? log.total;
-      let reachedPrevious = false;
-      let lastSha: string | undefined = resumeSha;
-
-      for (const commit of log.all) {
-        if (processed >= max) break;
-        if (resumeSha && commit.hash === resumeSha) {
-          reachedPrevious = true;
-          break;
-        }
-        const diff = await this.git.raw([
-          "show",
-          commit.hash,
-          "--unified=0",
-          "--patch"
-        ]);
-        const matches = findLeaks(
-          diff,
-          this.scanConfig.leakPatterns,
-          commit.hash,
-          `${commit.author_name} <${commit.author_email}>`,
-          commit.date
-        );
-        findings.push(...matches);
-        processed++;
-        lastSha = commit.hash;
-        this.stateStore.save({
-          lastProcessedSha: commit.hash,
-          updatedAt: new Date().toISOString(),
-          incomplete: true
-        });
+      if (branches.length === 0) {
+        console.log("No branches found to scan.");
       }
-
-      completed = true;
+      for (const branch of branches) {
+        console.log(`\nScanning branch ${branch}...`);
+        await this.checkoutBranch(branch);
+        const result = await this.scanBranch(branch);
+        aggregateFindings.push(...result.findings);
+        totalProcessed += result.processedCommits;
+        branchPlaceholders[branch] = result.lastSha;
+      }
+      console.log("Scan completed successfully.");
       return {
-        findings,
-        processedCommits: processed,
-        lastSha: reachedPrevious ? resumeSha : lastSha
+        findings: aggregateFindings,
+        processedCommits: totalProcessed,
+        branchPlaceholders
       };
     } finally {
-      if (completed) {
-        this.stateStore.clear();
-      }
       if (this.repoConfig.removeCloneOnExit) {
         this.cleanup();
       }
+    }
+  }
+
+  private async getBranchesToScan(): Promise<string[]> {
+    if (this.repoConfig.branches.length > 0) {
+      return this.repoConfig.branches;
+    }
+    const remotes = await this.git.branch(["-r"]);
+    const branches = remotes.all
+      .map((name) => name.trim())
+      .filter(
+        (name) =>
+          name.startsWith("origin/") &&
+          !name.includes("->") &&
+          !name.endsWith("/HEAD")
+      )
+      .map((name) => name.replace("origin/", ""));
+    const unique = Array.from(new Set(branches));
+    return unique.length > 0 ? unique : [this.repoConfig.defaultBranch];
+  }
+
+  private async scanBranch(branch: string): Promise<BranchScanResult> {
+    const branchState = this.stateStore.getBranchState(branch);
+    const resumeSha =
+      !this.scanConfig.forceFullScan && branchState?.incomplete
+        ? branchState.lastProcessedSha
+        : undefined;
+
+    if (this.scanConfig.forceFullScan && branchState?.incomplete) {
+      this.stateStore.clearBranchState(branch);
+    }
+
+    const log = await this.git.log({ "--date-order": null });
+    console.log(`Loaded ${log.total} commits from ${branch}`);
+
+    const findings: LeakFinding[] = [];
+    let processed = 0;
+    const max = this.repoConfig.maxCommitsPerRun ?? log.total;
+    let reachedPrevious = false;
+    let lastSha: string | undefined = resumeSha;
+    let completedBranch = true;
+
+    for (const commit of log.all) {
+      if (processed >= max) {
+        completedBranch = false;
+        break;
+      }
+      if (resumeSha && commit.hash === resumeSha) {
+        reachedPrevious = true;
+        break;
+      }
+      const diff = await this.git.raw([
+        "show",
+        commit.hash,
+        "--unified=0",
+        "--patch"
+      ]);
+      const matches = findLeaks(
+        diff,
+        this.scanConfig.leakPatterns,
+        commit.hash,
+        `${commit.author_name} <${commit.author_email}>`,
+        commit.date,
+        branch
+      );
+      findings.push(...matches);
+      processed++;
+      lastSha = commit.hash;
+      this.stateStore.saveBranchState(branch, {
+        lastProcessedSha: commit.hash,
+        updatedAt: new Date().toISOString(),
+        incomplete: true
+      });
+    }
+
+    if (completedBranch) {
+      this.stateStore.clearBranchState(branch);
+    }
+
+    return {
+      branch,
+      findings,
+      processedCommits: processed,
+      lastSha: reachedPrevious ? resumeSha : lastSha
+    };
+  }
+
+  private async checkoutBranch(branch: string): Promise<void> {
+    try {
+      await this.git.checkout(branch);
+    } catch (error) {
+      await this.git.checkout(["-B", branch, `origin/${branch}`]);
     }
   }
 
@@ -94,9 +159,11 @@ export default class GitRepoScanner {
     this.workDir = mkdtempSync(join(tmpdir(), "repo-"));
     const cloneUrl = this.buildCloneUrl();
     this.git = simpleGit({ baseDir: this.workDir });
+    console.log(`Cloning ${this.repoConfig.repoUrl} into ${this.workDir}`);
     await this.git.clone(cloneUrl, ".");
     await this.git.checkout(this.repoConfig.defaultBranch);
     await this.git.fetch();
+    console.log("Clone completed, starting branch scans...");
   }
 
   private buildCloneUrl(): string {

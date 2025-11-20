@@ -22,6 +22,8 @@ Set these in the shell before running:
 | Variable | Required | Description |
 | --- | --- | --- |
 | `TARGET_REPO` | ✅ | HTTPS URL of the repo to scan (e.g. `https://github.com/owner/project.git`) |
+| `TARGET_BRANCH` | optional | Default branch to clone first (defaults to `main`) |
+| `TARGET_BRANCHES` | optional | Comma-separated list of branches to scan (defaults to **all remote branches**) |
 | `GITHUB_USERNAME` | if private | Username that owns the PAT |
 | `GITHUB_PAT` | if private | PAT with `repo` scope (classic) or read access on the repo (fine-grained) |
 | `SCAN_OUTPUT_FILE` | optional | Path/name for the JSON results (default `scan-findings.json`) |
@@ -44,9 +46,9 @@ npm run scan
 
 What happens:
 
-1. Loads `.scanner-state.json` (or the file set in `SCAN_STATE_FILE`) only if the previous scan was interrupted. If `SCAN_FORCE_FULL=true`, any leftover checkpoint is discarded and the entire history is re-scanned.
+1. Loads `.scanner-state.json` (or the file set in `SCAN_STATE_FILE`) only if the previous scan for a branch was interrupted. If `SCAN_FORCE_FULL=true`, any leftover checkpoint is discarded and the entire history for all branches is re-scanned.
 2. Clones the repo into a temporary directory (auto-deleted after completion).
-3. Iterates commits newest → oldest, inspecting every diff for AWS secrets.
+3. Iterates over each branch listed in `TARGET_BRANCHES` (or all remote branches when unset), checking out the branch and scanning its commits newest → oldest for AWS secrets.
 4. Prints findings to the console and saves the full report to `scan-findings.json`.
 
 Sample output:
@@ -63,10 +65,10 @@ Results written to scan-findings.json
 
 ## Interpreting results
 
-- `scan-findings.json` contains structured data (`repo`, `processedCommits`, `findings[]`).
+- `scan-findings.json` contains structured data (`repo`, `processedCommits`, `branchPlaceholders`, `findings[]`).
 - Each finding lists `commitSha`, `committer`, `filePath`, regex pattern, matched value, and a diff line preview.
 - All commits containing the sensitive string appear, even if later commits remove it (because the scanner inspects the entire history).
-- During a scan, the tool constantly updates the checkpoint with the most recently processed commit. If a run finishes successfully, the checkpoint is deleted so the next run starts from the beginning; if it crashes or is interrupted, the checkpoint remains so the next run resumes from that commit.
+- During a scan, the tool constantly updates the checkpoint with the most recently processed commit *per branch*. If a branch finishes successfully, its checkpoint is deleted so the next run starts from the beginning; if it crashes or is interrupted, that branch’s checkpoint remains so the next run resumes from the saved placeholder.
 
 ## Cleaning up
 
