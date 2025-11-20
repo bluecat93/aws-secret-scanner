@@ -1,0 +1,19 @@
+{
+  "name": "secret-leak-scanner",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "scan": "node --loader ts-node/esm src/index.ts"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "simple-git": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}
+

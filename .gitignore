@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.scanner-state.json
+scan-findings.json
+tmp-repo/
+*.log
+.env
+
