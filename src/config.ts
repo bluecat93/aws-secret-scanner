@@ -1,7 +1,10 @@
+/**
+ * Static repo-level options. These can be overridden at runtime via env vars or API payloads.
+ */
 export interface RepoConfig {
-  repoUrl: string;
-  defaultBranch: string;
-  branches: string[];
+  repoUrl: string; // HTTPS clone URL
+  defaultBranch: string; // Preferred branch to check out first
+  branches: string[]; // Optional list of branches to scan (empty => auto-detect all)
   repoName: string;
   removeCloneOnExit: boolean;
   maxCommitsPerRun?: number;
@@ -14,6 +17,7 @@ export interface ScanConfig {
   forceFullScan: boolean;
 }
 
+// Allow overriding the initial branch via env; default to GitHub's modern naming.
 const defaultBranch = process.env.TARGET_BRANCH ?? "main";
 const branchList =
   process.env.TARGET_BRANCHES?.split(",")

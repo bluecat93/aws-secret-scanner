@@ -1,3 +1,6 @@
+/**
+ * Rich metadata returned for every detected leak.
+ */
 export interface LeakFinding {
   branch: string;
   commitSha: string;
@@ -9,6 +12,9 @@ export interface LeakFinding {
   linePreview: string;
 }
 
+/**
+ * Finds all matches of the configured regex patterns inside a commit diff.
+ */
 export function findLeaks(
   diffText: string,
   patterns: RegExp[],
@@ -18,6 +24,7 @@ export function findLeaks(
   branch: string
 ): LeakFinding[] {
   const findings: LeakFinding[] = [];
+  // Split by file diff to keep matches localized.
   const diffBlocks = diffText.split(/^diff --git/m).filter(Boolean);
 
   for (const block of diffBlocks) {
@@ -43,6 +50,9 @@ export function findLeaks(
   return findings;
 }
 
+/**
+ * Returns the exact diff line containing a match for better UX.
+ */
 function extractLine(block: string, index: number): string {
   const start = block.lastIndexOf("\n", index) + 1;
   const end = block.indexOf("\n", index);

@@ -5,6 +5,7 @@ import GitRepoScanner from "./git/GitRepoScanner.js";
 import ScanStateStore from "./state/ScanStateStore.js";
 
 async function main() {
+  // Optionally force a clean slate by deleting the previous checkpoint file.
   if (
     config.scanConfig.forceFullScan &&
     existsSync(config.scanConfig.stateFile)

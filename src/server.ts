@@ -5,7 +5,7 @@ import GitRepoScanner from "./git/GitRepoScanner.js";
 import ScanStateStore from "./state/ScanStateStore.js";
 
 const app = express();
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "1mb" })); // accept JSON bodies, up to 1 MB
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -67,6 +67,9 @@ app.listen(PORT, () => {
   console.log(chalk.green(`Secret scanner API is listening on port ${PORT}`));
 });
 
+/**
+ * Hydrates a repo config from the request body, falling back to defaults.
+ */
 function buildRepoConfig(body: any) {
   const branchesInput = body?.branches;
   let branches: string[] = [];
@@ -101,6 +104,9 @@ function buildScanConfig(body: any) {
   };
 }
 
+/**
+ * Allows per-request GitHub credentials, falling back to env vars.
+ */
 function buildAuthConfig(body: any) {
   return {
     username: body?.githubUsername ?? githubAuth.username,

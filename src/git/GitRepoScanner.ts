@@ -6,12 +6,18 @@ import { RepoConfig, ScanConfig, githubAuth } from "../config.js";
 import ScanStateStore from "../state/ScanStateStore.js";
 import { LeakFinding, findLeaks } from "../leakMatchers.js";
 
+/**
+ * Returned to the caller after all branches finish scanning.
+ */
 interface AggregateScanResult {
   findings: LeakFinding[];
   processedCommits: number;
   branchPlaceholders: Record<string, string | undefined>;
 }
 
+/**
+ * Internal representation of the work done for a single branch.
+ */
 interface BranchScanResult {
   branch: string;
   findings: LeakFinding[];
@@ -19,6 +25,9 @@ interface BranchScanResult {
   lastSha?: string;
 }
 
+/**
+ * Coordinates cloning, branch traversal, checkpointing, and leak detection.
+ */
 export default class GitRepoScanner {
   private git!: SimpleGit;
   private workDir!: string;
@@ -30,6 +39,9 @@ export default class GitRepoScanner {
     private readonly auth = githubAuth
   ) {}
 
+  /**
+   * High-level entry point: clone repo, iterate branches, aggregate findings.
+   */
   async scan(): Promise<AggregateScanResult> {
     console.log("Initializing scan...");
     await this.prepareRepo();
@@ -64,6 +76,10 @@ export default class GitRepoScanner {
     }
   }
 
+  /**
+   * Determines which branches to scan. Uses explicit list if provided,
+   * otherwise enumerates all remote branches (excluding HEAD pointers).
+   */
   private async getBranchesToScan(): Promise<string[]> {
     if (this.repoConfig.branches.length > 0) {
       return this.repoConfig.branches;
@@ -82,6 +98,9 @@ export default class GitRepoScanner {
     return unique.length > 0 ? unique : [this.repoConfig.defaultBranch];
   }
 
+  /**
+   * Checks if `origin/<branch>` exists.
+   */
   private async hasRemoteBranch(branch: string): Promise<boolean> {
     const remotes = await this.git.branch(["-r"]);
     return remotes.all
@@ -89,6 +108,9 @@ export default class GitRepoScanner {
       .some((name) => name === `origin/${branch}`);
   }
 
+  /**
+   * Walks commits newest → oldest for a specific branch, updating checkpoints along the way.
+   */
   private async scanBranch(branch: string): Promise<BranchScanResult> {
     const branchState = this.stateStore.getBranchState(branch);
     const resumeSha =
@@ -155,6 +177,10 @@ export default class GitRepoScanner {
     };
   }
 
+  /**
+   * Ensures the working tree is positioned on `branch`.
+   * Throws a 404-style error if the branch doesn't exist remotely.
+   */
   private async checkoutBranch(branch: string): Promise<void> {
     try {
       await this.git.checkout(branch);
@@ -172,6 +198,9 @@ export default class GitRepoScanner {
     }
   }
 
+  /**
+   * Creates a temp directory, clones the repo, and checks out the default branch.
+   */
   private async prepareRepo(): Promise<void> {
     this.workDir = mkdtempSync(join(tmpdir(), "repo-"));
     const cloneUrl = this.buildCloneUrl();
@@ -193,6 +222,10 @@ export default class GitRepoScanner {
     console.log("Clone completed, starting branch scans...");
   }
 
+  /**
+   * Attempts to checkout the preferred default branch, falling back to origin/HEAD
+   * or the first available remote branch if necessary.
+   */
   private async ensureDefaultBranchCheckedOut(): Promise<void> {
     const preferred = this.repoConfig.defaultBranch;
     if (preferred) {
@@ -229,6 +262,9 @@ export default class GitRepoScanner {
     );
   }
 
+  /**
+   * Reads the symbolic ref for origin/HEAD to detect the true default branch.
+   */
   private async detectRemoteHeadBranch(): Promise<string | undefined> {
     try {
       const head = await this.git.raw([
@@ -242,6 +278,9 @@ export default class GitRepoScanner {
     }
   }
 
+  /**
+   * Adds basic auth to the repo URL when credentials are provided.
+   */
   private buildCloneUrl(): string {
     const { repoUrl } = this.repoConfig;
     if (!this.auth?.username || !this.auth?.token) {
@@ -253,6 +292,9 @@ export default class GitRepoScanner {
     )}:${this.auth.token}@${rest}`;
   }
 
+  /**
+   * Removes the temporary clone directory to avoid leaking disk space.
+   */
   private cleanup(): void {
     if (this.workDir) {
       rmSync(this.workDir, { recursive: true, force: true });
