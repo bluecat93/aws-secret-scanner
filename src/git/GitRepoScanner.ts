@@ -162,9 +162,58 @@ export default class GitRepoScanner {
     this.git = simpleGit({ baseDir: this.workDir });
     console.log(`Cloning ${this.repoConfig.repoUrl} into ${this.workDir}`);
     await this.git.clone(cloneUrl, ".");
-    await this.git.checkout(this.repoConfig.defaultBranch);
+    await this.ensureDefaultBranchCheckedOut();
     await this.git.fetch();
     console.log("Clone completed, starting branch scans...");
+  }
+
+  private async ensureDefaultBranchCheckedOut(): Promise<void> {
+    const preferred = this.repoConfig.defaultBranch;
+    if (preferred) {
+      try {
+        await this.git.checkout(preferred);
+        return;
+      } catch (error) {
+        console.warn(
+          `Default branch "${preferred}" missing, trying remote HEAD fallback...`
+        );
+      }
+    }
+
+    const headBranch = await this.detectRemoteHeadBranch();
+    if (headBranch) {
+      console.log(`Remote HEAD points to ${headBranch}, checking it out.`);
+      await this.git.checkout(headBranch);
+      this.repoConfig.defaultBranch = headBranch;
+      return;
+    }
+
+    const branches = await this.getBranchesToScan();
+    if (branches.length > 0) {
+      console.log(
+        `Falling back to first available remote branch "${branches[0]}".`
+      );
+      await this.git.checkout(branches[0]);
+      this.repoConfig.defaultBranch = branches[0];
+      return;
+    }
+
+    throw new Error(
+      `Unable to determine a valid branch for ${this.repoConfig.repoUrl}`
+    );
+  }
+
+  private async detectRemoteHeadBranch(): Promise<string | undefined> {
+    try {
+      const head = await this.git.raw([
+        "symbolic-ref",
+        "refs/remotes/origin/HEAD"
+      ]);
+      const match = head.trim().match(/refs\/remotes\/origin\/(.+)$/);
+      return match ? match[1] : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private buildCloneUrl(): string {
