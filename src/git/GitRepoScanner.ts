@@ -1,4 +1,10 @@
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "fs";
+import {
+  mkdtempSync,
+  rmSync,
+  existsSync,
+  readFileSync,
+  writeFileSync
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import simpleGit, { SimpleGit } from "simple-git";
@@ -38,6 +44,7 @@ export default class GitRepoScanner {
     findings: LeakFinding[];
   };
   private totalProcessedCommits = 0;
+  private findingKeySet = new Set<string>();
 
   constructor(
     private readonly repoConfig: RepoConfig,
@@ -51,6 +58,7 @@ export default class GitRepoScanner {
       branchPlaceholders: {},
       findings: []
     };
+    this.findingKeySet = new Set<string>();
   }
 
   /**
@@ -140,21 +148,29 @@ export default class GitRepoScanner {
 
     const log = await this.git.log({ "--date-order": null });
     console.log(`Loaded ${log.total} commits from ${branch}`);
+    const commits = log.all;
+    let startIndex = 0;
+    if (resumeSha) {
+      const idx = commits.findIndex((c) => c.hash === resumeSha);
+      if (idx >= 0) {
+        startIndex = idx + 1;
+      } else {
+        console.warn(
+          `Resume commit ${resumeSha} not found on ${branch}; scanning entire branch.`
+        );
+      }
+    }
 
     const findings: LeakFinding[] = [];
     let processed = 0;
     const max = this.repoConfig.maxCommitsPerRun ?? log.total;
-    let reachedPrevious = false;
     let lastSha: string | undefined = resumeSha;
     let completedBranch = true;
 
-    for (const commit of log.all) {
+    for (let i = startIndex; i < commits.length; i++) {
+      const commit = commits[i];
       if (processed >= max) {
         completedBranch = false;
-        break;
-      }
-      if (resumeSha && commit.hash === resumeSha) {
-        reachedPrevious = true;
         break;
       }
       const diff = await this.git.raw([
@@ -193,7 +209,7 @@ export default class GitRepoScanner {
       branch,
       findings,
       processedCommits: processed,
-      lastSha: reachedPrevious ? resumeSha : lastSha
+      lastSha: lastSha ?? resumeSha
     };
   }
 
@@ -335,6 +351,7 @@ export default class GitRepoScanner {
         branchPlaceholders: {},
         findings: []
       };
+      this.findingKeySet.clear();
       writeFileSync(
         this.scanConfig.outputFile,
         JSON.stringify(this.outputState, null, 2)
@@ -353,6 +370,9 @@ export default class GitRepoScanner {
           branchPlaceholders: parsed.branchPlaceholders ?? {},
           findings: parsed.findings ?? []
         };
+        this.findingKeySet = new Set(
+          this.outputState.findings.map((f) => this.makeFindingKey(f))
+        );
         this.totalProcessedCommits = this.outputState.processedCommits;
         return;
       } catch {
@@ -366,6 +386,7 @@ export default class GitRepoScanner {
       branchPlaceholders: {},
       findings: []
     };
+    this.findingKeySet.clear();
   }
 
   private persistOutputSnapshot(
@@ -374,7 +395,12 @@ export default class GitRepoScanner {
     lastSha: string | undefined
   ): void {
     if (newFindings.length > 0) {
-      this.outputState.findings.push(...newFindings);
+      for (const finding of newFindings) {
+        const key = this.makeFindingKey(finding);
+        if (this.findingKeySet.has(key)) continue;
+        this.findingKeySet.add(key);
+        this.outputState.findings.push(finding);
+      }
     }
     if (branch) {
       if (lastSha) {
@@ -389,6 +415,17 @@ export default class GitRepoScanner {
       this.scanConfig.outputFile,
       JSON.stringify(this.outputState, null, 2)
     );
+  }
+
+  private makeFindingKey(finding: LeakFinding): string {
+    return [
+      finding.branch,
+      finding.commitSha,
+      finding.filePath,
+      finding.leakType,
+      finding.leakValue,
+      finding.linePreview
+    ].join("|");
   }
 }
 
