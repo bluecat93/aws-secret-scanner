@@ -30,7 +30,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"repoUrl\": \"https://github.com/bluecat93/spotifaux.git\"\n}"
+          "raw": "{\n  \"repoUrl\": \"{{defaultRepoUrl}}\",\n  \"branches\": {{defaultBranches}},\n  \"githubUsername\": \"{{githubUsername}}\",\n  \"githubToken\": \"{{githubToken}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/scan",
@@ -66,6 +66,14 @@
     {
       "key": "baseUrl",
       "value": "http://localhost:3000"
+    },
+    {
+      "key": "defaultRepoUrl",
+      "value": "https://github.com/bluecat93/spotifaux.git"
+    },
+    {
+      "key": "defaultBranches",
+      "value": "[\"main\"]"
     },
     {
       "key": "githubUsername",
