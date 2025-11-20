@@ -177,7 +177,17 @@ export default class GitRepoScanner {
     const cloneUrl = this.buildCloneUrl();
     this.git = simpleGit({ baseDir: this.workDir });
     console.log(`Cloning ${this.repoConfig.repoUrl} into ${this.workDir}`);
-    await this.git.clone(cloneUrl, ".");
+    try {
+      await this.git.clone(cloneUrl, ".");
+    } catch (error: any) {
+      const err = new Error(
+        `Unable to clone repository ${this.repoConfig.repoUrl}: ${
+          error?.message ?? error
+        }`
+      ) as Error & { status?: number };
+      err.status = 404;
+      throw err;
+    }
     await this.ensureDefaultBranchCheckedOut();
     await this.git.fetch();
     console.log("Clone completed, starting branch scans...");
