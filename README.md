@@ -70,6 +70,7 @@ Results written to scan-findings.json
 - Each finding lists `commitSha`, `committer`, `filePath`, regex pattern, matched value, and a diff line preview.
 - All commits containing the sensitive string appear, even if later commits remove it (because the scanner inspects the entire history).
 - During a scan, the tool constantly updates the checkpoint with the most recently processed commit *per branch*. If a branch finishes successfully, its checkpoint is deleted so the next run starts from the beginning; if it crashes or is interrupted, that branch’s checkpoint remains so the next run resumes from the saved placeholder.
+- `scan-findings.json` is saved incrementally after every processed commit. If a scan stops midway, the file already contains all findings discovered so far, and the next run appends to it rather than starting from scratch.
 
 ## Cleaning up
 

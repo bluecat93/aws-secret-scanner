@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import simpleGit, { SimpleGit } from "simple-git";
@@ -31,19 +31,34 @@ interface BranchScanResult {
 export default class GitRepoScanner {
   private git!: SimpleGit;
   private workDir!: string;
+  private outputState: {
+    repo: string;
+    processedCommits: number;
+    branchPlaceholders: Record<string, string | undefined>;
+    findings: LeakFinding[];
+  };
+  private totalProcessedCommits = 0;
 
   constructor(
     private readonly repoConfig: RepoConfig,
     private readonly scanConfig: ScanConfig,
     private readonly stateStore: ScanStateStore,
     private readonly auth = githubAuth
-  ) {}
+  ) {
+    this.outputState = {
+      repo: repoConfig.repoUrl,
+      processedCommits: 0,
+      branchPlaceholders: {},
+      findings: []
+    };
+  }
 
   /**
    * High-level entry point: clone repo, iterate branches, aggregate findings.
    */
   async scan(): Promise<AggregateScanResult> {
     console.log("Initializing scan...");
+    this.loadExistingOutputState();
     await this.prepareRepo();
 
     const aggregateFindings: LeakFinding[] = [];
@@ -64,6 +79,7 @@ export default class GitRepoScanner {
         branchPlaceholders[branch] = result.lastSha;
       }
       console.log("Scan completed successfully.");
+      this.persistOutputSnapshot([], "", undefined); // ensure latest placeholders are flushed
       return {
         findings: aggregateFindings,
         processedCommits: totalProcessed,
@@ -158,6 +174,8 @@ export default class GitRepoScanner {
       findings.push(...matches);
       processed++;
       lastSha = commit.hash;
+      this.totalProcessedCommits++;
+      this.persistOutputSnapshot(matches, branch, lastSha);
       this.stateStore.saveBranchState(branch, {
         lastProcessedSha: commit.hash,
         updatedAt: new Date().toISOString(),
@@ -167,6 +185,8 @@ export default class GitRepoScanner {
 
     if (completedBranch) {
       this.stateStore.clearBranchState(branch);
+      delete this.outputState.branchPlaceholders[branch];
+      this.persistOutputSnapshot([], branch, undefined);
     }
 
     return {
@@ -299,6 +319,56 @@ export default class GitRepoScanner {
     if (this.workDir) {
       rmSync(this.workDir, { recursive: true, force: true });
     }
+  }
+
+  private loadExistingOutputState(): void {
+    if (existsSync(this.scanConfig.outputFile)) {
+      try {
+        const parsed = JSON.parse(
+          readFileSync(this.scanConfig.outputFile, "utf8")
+        );
+        this.outputState = {
+          repo: parsed.repo ?? this.repoConfig.repoUrl,
+          processedCommits: parsed.processedCommits ?? 0,
+          branchPlaceholders: parsed.branchPlaceholders ?? {},
+          findings: parsed.findings ?? []
+        };
+        this.totalProcessedCommits = this.outputState.processedCommits;
+        return;
+      } catch {
+        // ignore malformed file; start fresh
+      }
+    }
+    this.totalProcessedCommits = 0;
+    this.outputState = {
+      repo: this.repoConfig.repoUrl,
+      processedCommits: 0,
+      branchPlaceholders: {},
+      findings: []
+    };
+  }
+
+  private persistOutputSnapshot(
+    newFindings: LeakFinding[],
+    branch: string,
+    lastSha: string | undefined
+  ): void {
+    if (newFindings.length > 0) {
+      this.outputState.findings.push(...newFindings);
+    }
+    if (branch) {
+      if (lastSha) {
+        this.outputState.branchPlaceholders[branch] = lastSha;
+      } else {
+        delete this.outputState.branchPlaceholders[branch];
+      }
+    }
+    this.outputState.repo = this.repoConfig.repoUrl;
+    this.outputState.processedCommits = this.totalProcessedCommits;
+    writeFileSync(
+      this.scanConfig.outputFile,
+      JSON.stringify(this.outputState, null, 2)
+    );
   }
 }
 
