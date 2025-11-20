@@ -30,7 +30,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"repoUrl\": \"{{defaultRepoUrl}}\",\n  \"branches\": {{defaultBranches}},\n  \"githubUsername\": \"{{githubUsername}}\",\n  \"githubToken\": \"{{githubToken}}\"\n}"
+          "raw": "{\n  \"repoUrl\": \"{{defaultRepoUrl}}\",\n  \"githubUsername\": \"{{githubUsername}}\",\n  \"githubToken\": \"{{githubToken}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/scan",
