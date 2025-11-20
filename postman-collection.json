@@ -1,0 +1,72 @@
+{
+  "info": {
+    "name": "Secret Leak Scanner API",
+    "_postman_id": "d2ef9c28-1e4a-4ec0-9b44-000000000000",
+    "description": "Collection for testing the secret leak scanner HTTP API.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Trigger Scan (default repo)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"repoUrl\": \"https://github.com/bluecat93/spotifaux.git\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/scan",
+          "host": ["{{baseUrl}}"],
+          "path": ["scan"]
+        }
+      }
+    },
+    {
+      "name": "Trigger Scan (custom branches)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"repoUrl\": \"https://github.com/bluecat93/spotifaux.git\",\n  \"branches\": [\"main\", \"aws-test\"],\n  \"forceFullScan\": true\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/scan",
+          "host": ["{{baseUrl}}"],
+          "path": ["scan"]
+        }
+      }
+    }
+  ],
+  "event": [],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ]
+}
+

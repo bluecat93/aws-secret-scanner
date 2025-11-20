@@ -29,6 +29,7 @@ Set these in the shell before running:
 | `SCAN_OUTPUT_FILE` | optional | Path/name for the JSON results (default `scan-findings.json`) |
 | `SCAN_STATE_FILE` | optional | Path to checkpoint file (default `.scanner-state.json`) |
 | `SCAN_FORCE_FULL` | optional | Set to `true` to delete the checkpoint before scanning |
+| `PORT` | optional | Port for the HTTP API server (default `3000`) |
 
 PowerShell example for a single session:
 
@@ -73,5 +74,31 @@ Results written to scan-findings.json
 ## Cleaning up
 
 - Temporary clone directories are deleted automatically.
-- The checkpoint file is deleted before every run; remove or override `SCAN_STATE_FILE` if you want resumable scans instead.
+- Each branch’s checkpoint file entry is deleted after a successful scan; override `SCAN_STATE_FILE` if you want separate files per repo.
+
+## HTTP API Mode
+
+Run the scanner as a web service:
+
+```powershell
+npm run serve
+# API listens on http://localhost:3000 by default
+```
+
+Endpoints:
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET /health` | Health check |
+| `POST /scan` | Trigger a scan. Accepts JSON body fields that mirror the environment variables (`repoUrl`, `defaultBranch`, `branches`, `forceFullScan`, etc.). Returns the same structure as `scan-findings.json`. |
+
+Example:
+
+```bash
+curl -X POST http://localhost:3000/scan \
+  -H "Content-Type: application/json" \
+  -d '{"repoUrl":"https://github.com/bluecat93/spotifaux.git","branches":["main","aws-test"]}'
+```
+
+The API uses the same checkpoint/resume behavior as the CLI, so interrupted scans can be resumed by issuing another `POST /scan` with the same parameters.
 
