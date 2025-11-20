@@ -102,3 +102,7 @@ curl -X POST http://localhost:3000/scan \
 
 The API uses the same checkpoint/resume behavior as the CLI, so interrupted scans can be resumed by issuing another `POST /scan` with the same parameters.
 
+### Passing GitHub credentials via API
+
+`POST /scan` accepts `githubUsername` and `githubToken` fields when you need to override the default credentials for a specific request. If omitted, the server uses the environment variables (`GITHUB_USERNAME`, `GITHUB_PAT`).
+

@@ -26,7 +26,8 @@ export default class GitRepoScanner {
   constructor(
     private readonly repoConfig: RepoConfig,
     private readonly scanConfig: ScanConfig,
-    private readonly stateStore: ScanStateStore
+    private readonly stateStore: ScanStateStore,
+    private readonly auth = githubAuth
   ) {}
 
   async scan(): Promise<AggregateScanResult> {
@@ -168,13 +169,13 @@ export default class GitRepoScanner {
 
   private buildCloneUrl(): string {
     const { repoUrl } = this.repoConfig;
-    if (!githubAuth.username || !githubAuth.token) {
+    if (!this.auth?.username || !this.auth?.token) {
       return repoUrl;
     }
     const [protocol, rest] = repoUrl.split("://");
     return `${protocol}://${encodeURIComponent(
-      githubAuth.username
-    )}:${githubAuth.token}@${rest}`;
+      this.auth.username
+    )}:${this.auth.token}@${rest}`;
   }
 
   private cleanup(): void {

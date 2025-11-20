@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { existsSync, unlinkSync, writeFileSync } from "fs";
-import config from "./config.js";
+import config, { githubAuth } from "./config.js";
 import GitRepoScanner from "./git/GitRepoScanner.js";
 import ScanStateStore from "./state/ScanStateStore.js";
 
@@ -15,7 +15,8 @@ async function main() {
   const scanner = new GitRepoScanner(
     config.repoConfig,
     config.scanConfig,
-    stateStore
+    stateStore,
+    githubAuth
   );
 
   console.log(chalk.blue("Launching secret scan..."));

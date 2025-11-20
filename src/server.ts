@@ -1,6 +1,6 @@
 import express from "express";
 import chalk from "chalk";
-import config from "./config.js";
+import config, { githubAuth } from "./config.js";
 import GitRepoScanner from "./git/GitRepoScanner.js";
 import ScanStateStore from "./state/ScanStateStore.js";
 
@@ -17,8 +17,14 @@ app.post("/scan", async (req, res, next) => {
   try {
     const repoConfig = buildRepoConfig(req.body);
     const scanConfig = buildScanConfig(req.body);
+    const authConfig = buildAuthConfig(req.body);
     const stateStore = new ScanStateStore(scanConfig.stateFile);
-    const scanner = new GitRepoScanner(repoConfig, scanConfig, stateStore);
+    const scanner = new GitRepoScanner(
+      repoConfig,
+      scanConfig,
+      stateStore,
+      authConfig
+    );
 
     console.log(
       chalk.blue(
@@ -91,7 +97,14 @@ function buildScanConfig(body: any) {
     stateFile: body?.stateFile ?? config.scanConfig.stateFile,
     outputFile: body?.outputFile ?? config.scanConfig.outputFile,
     forceFullScan:
-    body?.forceFullScan ?? config.scanConfig.forceFullScan
+      body?.forceFullScan ?? config.scanConfig.forceFullScan
+  };
+}
+
+function buildAuthConfig(body: any) {
+  return {
+    username: body?.githubUsername ?? githubAuth.username,
+    token: body?.githubToken ?? githubAuth.token
   };
 }
 

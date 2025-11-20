@@ -40,7 +40,7 @@
       }
     },
     {
-      "name": "Trigger Scan (custom branches)",
+      "name": "Trigger Scan (custom branches + auth override)",
       "request": {
         "method": "POST",
         "header": [
@@ -51,7 +51,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"repoUrl\": \"https://github.com/bluecat93/spotifaux.git\",\n  \"branches\": [\"main\", \"aws-test\"],\n  \"forceFullScan\": true\n}"
+          "raw": "{\n  \"repoUrl\": \"https://github.com/bluecat93/spotifaux.git\",\n  \"branches\": [\"main\", \"aws-test\"],\n  \"forceFullScan\": true,\n  \"githubUsername\": \"{{githubUsername}}\",\n  \"githubToken\": \"{{githubToken}}\"\n}"
         },
         "url": {
           "raw": "{{baseUrl}}/scan",
@@ -66,6 +66,14 @@
     {
       "key": "baseUrl",
       "value": "http://localhost:3000"
+    },
+    {
+      "key": "githubUsername",
+      "value": ""
+    },
+    {
+      "key": "githubToken",
+      "value": ""
     }
   ]
 }
