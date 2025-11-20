@@ -322,6 +322,26 @@ export default class GitRepoScanner {
   }
 
   private loadExistingOutputState(): void {
+    const shouldReset =
+      this.scanConfig.forceFullScan ||
+      !existsSync(this.scanConfig.stateFile) ||
+      !existsSync(this.scanConfig.outputFile);
+
+    if (shouldReset) {
+      this.totalProcessedCommits = 0;
+      this.outputState = {
+        repo: this.repoConfig.repoUrl,
+        processedCommits: 0,
+        branchPlaceholders: {},
+        findings: []
+      };
+      writeFileSync(
+        this.scanConfig.outputFile,
+        JSON.stringify(this.outputState, null, 2)
+      );
+      return;
+    }
+
     if (existsSync(this.scanConfig.outputFile)) {
       try {
         const parsed = JSON.parse(
